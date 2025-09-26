@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+.env
+
+# IDE/editor settings
+.vscode/
+.idea/
+
+# Chroma DB persistence
+data/db/
+*.sqlite3
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Logs
+*.log
