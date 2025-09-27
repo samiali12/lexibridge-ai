@@ -18,6 +18,5 @@ class LLM:
         )
 
     def invoke(self, query: str):
-        result = self.qa.invoke({"query": query})
-        print("Answer:", result["result"])
-        print("Sources:", [doc.metadata for doc in result["source_documents"]])
+        result = self.qa.invoke({"query": query})        
+        return result
