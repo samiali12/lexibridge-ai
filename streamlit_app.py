@@ -5,12 +5,14 @@ from src.llm import LLM
 import streamlit as st 
 import re 
 import json 
+from deep_translator import GoogleTranslator
+
 
 
 @st.cache_resource
 def load_pipeline():
     data_obj = DataProcessor(limit=5)
-    chunks, data = data_obj.build_data()
+    chunks, _ = data_obj.build_data()
 
     embedding = EmbeddingManager()
     model = embedding.get_model()
@@ -19,14 +21,15 @@ def load_pipeline():
     embd = embedding.embed_texts(chunks_list)
 
     vectordb = VectorStore()
-    vectordb.add_document(data, embd)
+    vectordb.add_document(chunks, embd)
     retriever = vectordb.get_retriever(model)
 
     llm = LLM(retriever)
     return llm
 
 def highlight_text(query, text):
-    for word in query.split():
+    words = set(query.split()) 
+    for word in words:
         pattern = re.compile(re.escape(word), re.IGNORECASE)
         text = pattern.sub(f"<mark>{word}</mark>", text)
     return text
@@ -45,6 +48,9 @@ def get_chat_transcript_json():
         return json.dumps(st.session_state.chat_history, indent=2, ensure_ascii=False)
     return json.dumps({'data': 'not found'},indent=2)
 
+def translate(text, target_lang='ur'):
+    return GoogleTranslator(source='auto', target=target_lang).translate(text)
+
 if __name__ == '__main__':
     
     llm = load_pipeline()
@@ -56,7 +62,16 @@ if __name__ == '__main__':
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
+    # sidebar 
+
     with st.sidebar:
+        st.header("⚙️ Settings")
+
+        selected_language = st.selectbox(
+            "Select Language",
+            ("English", "Urdu"),
+        )
+
         if st.button('🗑️ Clear Chat'):
             st.session_state.chat_history = []
 
@@ -77,35 +92,50 @@ if __name__ == '__main__':
     st.subheader("💬 Conversation")
 
     for chat in st.session_state.chat_history:
-         st.markdown(f"**🧑 You:** {chat['query']}")
-         st.markdown(f"**🤖 Assistant:** {chat['answer']}")
+        
+         with st.chat_message("user"):
+            st.markdown(chat['query'])
+         with st.chat_message('assistant'):
+             st.markdown(chat['answer'])
 
-         with st.expander("🔎 Sources"):
+         with st.expander("📚 Sources"):
              for i, doc in enumerate(chat["sources"], 1):
-                highlighted = highlight_text(doc.page_content[:300], chat['query'])
+                highlighted = highlight_text(doc['page_content'][:300], chat['query'])
                 st.markdown(highlighted, unsafe_allow_html=True)
-                st.caption(f"Metadata: {doc.metadata}")
+                st.caption(f"**Source:** {doc['metadata']['source']} | Length: {doc['metadata']['content_length']}")
 
-    # sample question: 
-    query = st.text_input("Enter your legal question:", key="query_input")
-
-    if st.button("search"):
-        if query.strip():
-            
-            with st.spinner("🤖 Thinking... please wait"):
+    if query := st.chat_input("Enter your legal question..."):
+    
+        with st.spinner("🤖 Thinking... please wait"):
                 result = llm.invoke(query)
-                
-            
+
+        if selected_language.lower() == 'urdu':
+            with st.spinner('Translating into urdu'):
+                st.session_state.chat_history.append({
+                    "query": translate(query),
+                    "answer": translate(result['result']),
+                    "sources": [
+                        {
+                            "page_content": translate(doc.page_content),
+                            "metadata": doc.metadata
+                        }
+                        for doc in result["source_documents"]
+                    ]
+                })
+        else:
             st.session_state.chat_history.append({
                     "query": query,
                     "answer": result['result'],
-                    "sources": result["source_documents"]
+                    "sources": [
+                        {
+                            "page_content": doc.page_content,
+                            "metadata": doc.metadata
+                        }
+                        for doc in result["source_documents"]
+                    ]
             })
 
-            st.rerun()
-
-        else:
-            st.warning("Please enter a query.")
+        st.rerun()
 
 
             
