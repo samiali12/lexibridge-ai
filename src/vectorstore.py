@@ -59,7 +59,7 @@ class VectorStore:
         )
         print(f"Documents and embedding are added successfully into the collection {self.collection_name}")
 
-    def get_retriever(self, embedding_function, search_kwargs=None):
+    def get_retriever(self, embedding_function, search_kwargs={"k": 5}):
         if search_kwargs is None:
             search_kwargs = {"k": 5}
         
